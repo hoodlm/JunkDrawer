@@ -8,4 +8,8 @@ edition = "2021"
 name = "dna"
 path = "src/dna.rs"
 
+[[bin]]
+name = "rna"
+path = "src/rna.rs"
+
 [dependencies]
