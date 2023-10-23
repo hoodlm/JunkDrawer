@@ -20,4 +20,8 @@ path = "src/revc.rs"
 name = "fib_rabbit"
 path = "src/fib_rabbit.rs"
 
+[[bin]]
+name = "mortal_rabbits"
+path = "src/mortal_rabbits.rs"
+
 [dependencies]
