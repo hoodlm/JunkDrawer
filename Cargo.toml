@@ -16,4 +16,8 @@ path = "src/rna.rs"
 name = "revc"
 path = "src/revc.rs"
 
+[[bin]]
+name = "fib_rabbit"
+path = "src/fib_rabbit.rs"
+
 [dependencies]
