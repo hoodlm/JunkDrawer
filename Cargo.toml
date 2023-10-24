@@ -24,4 +24,8 @@ path = "src/fib_rabbit.rs"
 name = "mortal_rabbits"
 path = "src/mortal_rabbits.rs"
 
+[[bin]]
+name = "gc_content"
+path = "src/gc_content.rs"
+
 [dependencies]
