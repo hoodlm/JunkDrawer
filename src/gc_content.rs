@@ -1,22 +1,26 @@
 use std::env;
 use std::fs;
+use std::iter::Peekable;
+use std::cmp::Ordering;
 
 fn main() {
-    println!("Setting this aside; don't know enough rust to write a coherent state machine parser yet");
-    if false {
-        __main()
-    }
-}
-
-fn __main() {
-    println!("Setting this aside; don't know enough rust to write a coherent state machine parser yet");
     let args: Vec<String> = env::args().collect();
     let filename = filename_from_args(&args);
     let input = fs::read_to_string(&filename).unwrap();
 
-    let fastas: Vec<Fasta> = FastaReader::_new(&input.clone()).collect();
-    let result: Vec<f64> = fastas.iter().map(|x| calculate_gc_percentage(x)).collect();
-    println!("{:?}", result);
+    let fastas: Vec<Fasta> = FastaReader::new(&input.clone()).collect();
+    let gcs: Vec<(&String, f64)> = fastas.iter()
+        .map(|x| (&x.id, calculate_gc_percentage(x)))
+        .collect();
+
+    println!("{:?}", gcs);
+
+    let max = gcs.iter()
+        .reduce(|x, y| match x.1.partial_cmp(&y.1) { Some(Ordering::Greater) => x, _ => y })
+        .unwrap();
+
+    println!("{}", max.0);
+    println!("{}", max.1);
 }
 
 fn filename_from_args(args: &[String]) -> &str {
@@ -39,24 +43,29 @@ fn calculate_gc_percentage(fasta: &Fasta) -> f64 {
 }
 
 struct Fasta {
-    _id: String,
+    id: String,
     sequence: String
 }
 
 impl Fasta {
-    fn _new(id: String, sequence: String) -> Fasta {
-        Fasta { _id: id, sequence: sequence }
+    fn new(id: String, sequence: String) -> Fasta {
+        assert!(Self::valid_id_line(&id), "ID '{id}' is not a well-formed ID");
+        let id_clean = &id[1..];
+        Fasta { id: id_clean.to_string(), sequence: sequence }
+    }
+
+    fn valid_id_line(s: &str) -> bool {
+        s.chars().next() == Some('>')
     }
 }
 
 struct FastaReader<'a> {
-    _internal_iter: std::str::Lines<'a>,
+    file_iter: Peekable<std::str::Lines<'a>>
 }
 
 impl<'a> FastaReader<'a> {
-    fn _new(raw_text: &'a String) -> FastaReader<'a> {
-        let line_iterator = raw_text.lines();
-        FastaReader { _internal_iter: line_iterator }
+    fn new(raw_text: &'a String) -> FastaReader<'a> {
+        FastaReader { file_iter: raw_text.lines().peekable() }
     }
 }
 
@@ -64,7 +73,19 @@ impl Iterator for FastaReader<'_> {
     type Item = Fasta;
 
     fn next(&mut self) -> Option<Self::Item> {
-        None
+        let id: &str = match self.file_iter.next() {
+            None => { return None },
+            Some("") => { return None },
+            Some(line) => line,
+        };
+        let mut sequence = String::from("");
+
+        while self.file_iter.peek().is_some() && !Fasta::valid_id_line(self.file_iter.peek().unwrap()) {
+            sequence.push_str(self.file_iter.next().unwrap());
+        }
+
+        let fasta = Fasta::new(id.to_string(), sequence.to_string());
+        return Some(fasta);
     }
 }
 
@@ -74,15 +95,20 @@ mod test {
 
     #[test]
     fn gc_percentage() {
-        let sample = Fasta { sequence: String::from("AGCTATAG"), _id: String::from("doesnt matter") };
+        let sample = Fasta { sequence: String::from("AGCTATAG"), id: String::from("doesnt matter") };
         assert_eq!(37.5, calculate_gc_percentage(&sample));
+    }
+    #[test]
+    fn test_valid_id() {
+        assert_eq!(true, Fasta::valid_id_line(&String::from(">Foo_bar")));
+        assert_eq!(false, Fasta::valid_id_line(&String::from("Foo_bar")));
+        assert_eq!(false, Fasta::valid_id_line(&String::from("")));
     }
 
     #[test]
-    #[ignore] // TODO
     fn fasta_parser() {
-        let sample_raw_fastas = String::from("
->Rosalind_6404
+        let sample_raw_fastas = String::from(
+">Rosalind_6404
 CCTGCGGAAGATCGGCACTAGAATAGCCAGAACCGTTTCTCTGAGGCTTCCGGCCTTCCC
 TCCCACTAATAATTCTGAGG
 >Rosalind_5959
@@ -90,10 +116,15 @@ CCATCGGTAGCGCATCCTTAGTCCAATTAAGTCCCTATCCAGGCGCTCCGCCGAAGGTCT
 ATATCCATTTGTCAGCAGACACGC
 >Rosalind_0808
 CCACCCTCGTGGTATGGCTAGGCATTCAGGAACCGGAGAACGCTTCAGACCAGCCCGGAC
-TGGGAACCTGCGGGCAGTAGGTGGAAT
-        ");
-        let reader = FastaReader::_new(&sample_raw_fastas);
+TGGGAACCTGCGGGCAGTAGGTGGAAT");
+        let reader = FastaReader::new(&sample_raw_fastas);
         let parsed: Vec<Fasta> = reader.collect();
         assert_eq!(3, parsed.len());
+        assert_eq!("Rosalind_6404", parsed[0].id);
+        assert_eq!("Rosalind_5959", parsed[1].id);
+        assert_eq!("Rosalind_0808", parsed[2].id);
+        assert_eq!("CCTGCGGAAGATCGGCACTAGAATAGCCAGAACCGTTTCTCTGAGGCTTCCGGCCTTCCCTCCCACTAATAATTCTGAGG", parsed[0].sequence);
+        assert_eq!("CCATCGGTAGCGCATCCTTAGTCCAATTAAGTCCCTATCCAGGCGCTCCGCCGAAGGTCTATATCCATTTGTCAGCAGACACGC", parsed[1].sequence);
+        assert_eq!("CCACCCTCGTGGTATGGCTAGGCATTCAGGAACCGGAGAACGCTTCAGACCAGCCCGGACTGGGAACCTGCGGGCAGTAGGTGGAAT", parsed[2].sequence);
     }
 }
