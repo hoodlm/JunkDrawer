@@ -36,4 +36,8 @@ path = "src/gc_content.rs"
 name = "prot"
 path = "src/prot.rs"
 
+[[bin]]
+name = "mrna"
+path = "src/mrna.rs"
+
 [dependencies]
