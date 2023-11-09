@@ -32,4 +32,8 @@ path = "src/mortal_rabbits.rs"
 name = "gc_content"
 path = "src/gc_content.rs"
 
+[[bin]]
+name = "prot"
+path = "src/prot.rs"
+
 [dependencies]
