@@ -40,4 +40,8 @@ path = "src/prot.rs"
 name = "mrna"
 path = "src/mrna.rs"
 
+[[bin]]
+name = "iprb"
+path = "src/iprb.rs"
+
 [dependencies]
