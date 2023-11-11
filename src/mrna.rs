@@ -21,9 +21,10 @@ fn filename_from_args(args: &[String]) -> &str {
 fn compute_mrna_permutations_for_protein(protein: &String) -> u64 {
     protein.chars()
         .map(|aa| aa_to_n_rna_strings(&aa))
-        .reduce(|x, y| x * y)
+        .reduce(|x, y| (x * y) % 1000000)
         .unwrap_or(1)
         * 3 // for 3 possible STOP codons
+        % 1000000
 }
 
 fn aa_to_n_rna_strings(aa: &char) -> u64 {
@@ -48,7 +49,7 @@ fn aa_to_n_rna_strings(aa: &char) -> u64 {
         'D' => 2,
         'E' => 2,
         'G' => 4,
-        c => panic!("{}", format!("Unexpected aa character {c}"))
+        c => { eprintln!("WARN: Unexpected char '{}'", c); 1 },
     }
 }
 
@@ -74,13 +75,13 @@ mod test {
     fn exhaust_valid_amino_acids() {
         let sample_protein = String::from("FLSYCWPHQRIMTNKVADEG");
         let result = compute_mrna_permutations_for_protein(&sample_protein);
-        assert_eq!(1019215872, result);
+        assert_eq!(215872, result);
     }
 
     #[test]
     fn overflow_scale_test() {
-        let sample_protein = String::from("SSSSSSSSSSSSSSSSSSSSSSSS");
+        let sample_protein = String::from("SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS");
         let result = compute_mrna_permutations_for_protein(&sample_protein);
-        assert_eq!(14215144014964850688, result);
+        assert_eq!(24448, result);
     }
 }
