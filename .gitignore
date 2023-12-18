@@ -1,0 +1,10 @@
+*.swp
+*.swo
+
+rust/*/target
+rust/*/Cargo.lock
+
+hn_offline/tmp/*
+!hn_offline/tmp/.gitkeep
+hn_offline/out/*
+!hn_offline/out/.gitkeep
