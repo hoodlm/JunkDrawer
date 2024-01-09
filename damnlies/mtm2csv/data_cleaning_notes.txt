@@ -1,0 +1,4 @@
+* Strip off everything above the final "normal" week. i.e. remove rules and "now that's what i call..."
+* In 2022 and 2023, change all "June" to "Jun", "July" to "Jul", "August" to "Aug", "Sept" to "Sep"
+* In 2021, all of the above PLUS change "April" to "Apr"
+* Get rid of the empty cells in the week of 2023 August 21
