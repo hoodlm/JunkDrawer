@@ -7,7 +7,7 @@ Describe 'Network health'
     End
 
     It "$2 via ipv$1"
-      When call ping -$1 -c 1 $2
+      When call ping -W2 -$1 -c 1 $2
       The output should include "1 packets transmitted, 1 received, 0% packet loss"
     End
   End
