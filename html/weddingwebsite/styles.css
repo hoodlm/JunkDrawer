@@ -1,0 +1,41 @@
+body {
+  background-image: linear-gradient(to bottom, #FFD4CC, #EAC590, #CBD4CB, #FF9159);
+  /* background-attachment: fixed; */
+  color: #45413a;
+  padding-left: 5%;
+  padding-right: 5%;
+  font-family: Georgia, serif;
+}
+
+h1 {
+  text-align: center;
+}
+
+h3 {
+  text-decoration: underline;
+}
+
+p {
+  padding-left: 3%;
+}
+
+img {
+  width: 100%;
+  height: auto;
+  margin-left: auto;
+  margin-right: auto;
+  border: 1px solid black;
+}
+
+#colorbox {
+  width:30%;
+  min-width:125px;
+  height:45px;
+  line-height: 45px;
+  display:inline-block;
+  border-width:1px;
+  border-style:solid;
+  border-color:#000000;
+  text-align:center;
+  font-size:75%;
+}
