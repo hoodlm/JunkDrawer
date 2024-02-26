@@ -16,9 +16,10 @@ impl<'a, T> TreeNode<'a, T> {
     }
 
     fn depth_first_iter(&self) -> DepthFirstIter<T> {
-        let sub_iters: Vec<DepthFirstIter<T>> = self.children.iter().map(|child| {
+        let mut sub_iters: Vec<DepthFirstIter<T>> = self.children.iter().map(|child| {
             child.depth_first_iter()
         }).collect();
+        sub_iters.reverse();
         DepthFirstIter {
             head: Some(self),
             active_iter: None,
@@ -151,13 +152,13 @@ mod tests {
         head.add_child(&right_subtree);
 
         let mut iter = head.depth_first_iter();
-        assert_eq!(iter.next(), Some(&String::from("head/right/leaf2")));
-        assert_eq!(iter.next(), Some(&String::from("head/right/leaf1")));
-        assert_eq!(iter.next(), Some(&String::from("head/right")));
-        assert_eq!(iter.next(), Some(&String::from("head/left/leaf3")));
-        assert_eq!(iter.next(), Some(&String::from("head/left/leaf2")));
         assert_eq!(iter.next(), Some(&String::from("head/left/leaf1")));
+        assert_eq!(iter.next(), Some(&String::from("head/left/leaf2")));
+        assert_eq!(iter.next(), Some(&String::from("head/left/leaf3")));
         assert_eq!(iter.next(), Some(&String::from("head/left")));
+        assert_eq!(iter.next(), Some(&String::from("head/right/leaf1")));
+        assert_eq!(iter.next(), Some(&String::from("head/right/leaf2")));
+        assert_eq!(iter.next(), Some(&String::from("head/right")));
         assert_eq!(iter.next(), Some(&String::from("head")));
         assert_eq!(iter.next(), None);
         assert_eq!(iter.next(), None);
@@ -186,8 +187,8 @@ mod tests {
         head.add_child(&level_1);
 
         let mut df = head.depth_first_iter();
-        assert_eq!(df.next(), Some(&String::from("head/1/2/3/4/5/6/B")));
         assert_eq!(df.next(), Some(&String::from("head/1/2/3/4/5/6/A")));
+        assert_eq!(df.next(), Some(&String::from("head/1/2/3/4/5/6/B")));
         assert_eq!(df.next(), Some(&String::from("head/1/2/3/4/5/6")));
         assert_eq!(df.next(), Some(&String::from("head/1/2/3/4/5")));
         assert_eq!(df.next(), Some(&String::from("head/1/2/3/4")));
