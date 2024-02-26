@@ -15,14 +15,11 @@ impl<'a, T> TreeNode<'a, T> {
         self.children.push(&child);
     }
 
-    fn dfs_iter(&self) -> DfsIter<T> {
-        println!("dfs_iter!");
-        println!("how many children? {}", self.children.len());
-        let sub_iters: Vec<DfsIter<T>> = self.children.iter().map(|child| {
-            child.dfs_iter()
+    fn depth_first_iter(&self) -> DepthFirstIter<T> {
+        let sub_iters: Vec<DepthFirstIter<T>> = self.children.iter().map(|child| {
+            child.depth_first_iter()
         }).collect();
-        println!("sub iters count: {}", sub_iters.len());
-        DfsIter {
+        DepthFirstIter {
             head: Some(self),
             active_iter: None,
             sub_iters: sub_iters,
@@ -30,16 +27,15 @@ impl<'a, T> TreeNode<'a, T> {
     }
 }
 
-struct DfsIter<'a, T> {
+struct DepthFirstIter<'a, T> {
     head: Option<&'a TreeNode<'a, T>>,
-    active_iter: Option<Box<DfsIter<'a, T>>>,
-    sub_iters: Vec<DfsIter<'a, T>>,
+    active_iter: Option<Box<DepthFirstIter<'a, T>>>,
+    sub_iters: Vec<DepthFirstIter<'a, T>>,
 }
 
-impl<'a, T> Iterator for DfsIter<'a, T> {
+impl<'a, T> Iterator for DepthFirstIter<'a, T> {
     type Item = &'a T;
     fn next(&mut self) -> Option<Self::Item> {
-        let mut next: Option<Self::Item> = None;
         if self.active_iter.is_none() {
             let maybe_next_child = self.sub_iters.pop();
             if maybe_next_child.is_some() {
@@ -47,6 +43,7 @@ impl<'a, T> Iterator for DfsIter<'a, T> {
             }
         }
 
+        let mut next: Option<Self::Item> = None;
         match self.active_iter.as_mut() {
             None => {
                 next = match self.head {
@@ -123,9 +120,17 @@ mod tests {
         assert_eq!(right.elem, "head/left");
         assert_eq!(right.children.len(), 2);
     }
+    #[test]
+    fn df_iter_empty_tree() {
+        let tree = TreeNode::new(String::from("just me"));
+        let mut iter = tree.depth_first_iter();
+        assert_eq!(iter.next(), Some(&String::from("just me")));
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
+    }
 
     #[test]
-    fn dfs_two_levels() {
+    fn df_two_levels() {
         let mut head = TreeNode::new(String::from("head"));
 
         let mut left_subtree = TreeNode::new(String::from("head/left"));
@@ -145,7 +150,7 @@ mod tests {
         head.add_child(&left_subtree);
         head.add_child(&right_subtree);
 
-        let mut iter = head.dfs_iter();
+        let mut iter = head.depth_first_iter();
         assert_eq!(iter.next(), Some(&String::from("head/right/leaf2")));
         assert_eq!(iter.next(), Some(&String::from("head/right/leaf1")));
         assert_eq!(iter.next(), Some(&String::from("head/right")));
@@ -159,7 +164,7 @@ mod tests {
     }
 
     #[test]
-    fn dfs_deep_levels() {
+    fn df_deep_levels() {
         let mut head = TreeNode::new(String::from("head"));
         let mut level_1 = TreeNode::new(String::from("head/1"));
         let mut level_2 = TreeNode::new(String::from("head/1/2"));
@@ -180,17 +185,17 @@ mod tests {
         level_1.add_child(&level_2);
         head.add_child(&level_1);
 
-        let mut dfs = head.dfs_iter();
-        assert_eq!(dfs.next(), Some(&String::from("head/1/2/3/4/5/6/B")));
-        assert_eq!(dfs.next(), Some(&String::from("head/1/2/3/4/5/6/A")));
-        assert_eq!(dfs.next(), Some(&String::from("head/1/2/3/4/5/6")));
-        assert_eq!(dfs.next(), Some(&String::from("head/1/2/3/4/5")));
-        assert_eq!(dfs.next(), Some(&String::from("head/1/2/3/4")));
-        assert_eq!(dfs.next(), Some(&String::from("head/1/2/3")));
-        assert_eq!(dfs.next(), Some(&String::from("head/1/2")));
-        assert_eq!(dfs.next(), Some(&String::from("head/1")));
-        assert_eq!(dfs.next(), Some(&String::from("head")));
-        assert_eq!(dfs.next(), None);
-        assert_eq!(dfs.next(), None);
+        let mut df = head.depth_first_iter();
+        assert_eq!(df.next(), Some(&String::from("head/1/2/3/4/5/6/B")));
+        assert_eq!(df.next(), Some(&String::from("head/1/2/3/4/5/6/A")));
+        assert_eq!(df.next(), Some(&String::from("head/1/2/3/4/5/6")));
+        assert_eq!(df.next(), Some(&String::from("head/1/2/3/4/5")));
+        assert_eq!(df.next(), Some(&String::from("head/1/2/3/4")));
+        assert_eq!(df.next(), Some(&String::from("head/1/2/3")));
+        assert_eq!(df.next(), Some(&String::from("head/1/2")));
+        assert_eq!(df.next(), Some(&String::from("head/1")));
+        assert_eq!(df.next(), Some(&String::from("head")));
+        assert_eq!(df.next(), None);
+        assert_eq!(df.next(), None);
     }
 }
