@@ -7,6 +7,10 @@ conda activate manim-playground
 
 # Initial setup
 
+```
+conda env create -f environment.yml
+```
+
 ## Getting Conda installed on my system
 
 I'm trying out Conda for managing python dependencies here... generally following the 'vanilla' https://docs.anaconda.com/miniconda/ setup instructions
@@ -37,4 +41,10 @@ command -v python
 python --version
 command -v manim
 manim checkhealth
+```
+
+I've since moved this to `environment.yml`, so this is actually just:
+
+```
+conda env create -f environment.yml
 ```

@@ -1,0 +1,5 @@
+name: manim-playground
+channels:
+  - conda-forge
+dependencies:
+  - manim
