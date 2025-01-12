@@ -1,8 +1,8 @@
-use log::{info};
+use crate::datafile::DataFileParser;
+use log::info;
 use simplelog::{ConfigBuilder, LevelFilter, SimpleLogger};
 use std::env;
 use std::fs;
-use crate::datafile::validate_file;
 
 mod datafile;
 
@@ -16,7 +16,8 @@ fn main() {
         for gamefile in fs::read_dir(cd_directory).unwrap() {
             let gamefile_path = gamefile.unwrap().path();
             let gamefile_path_str = gamefile_path.as_path().to_str().unwrap();
-            validate_file(gamefile_path_str);
+            let parser = DataFileParser::new(gamefile_path_str);
+            parser.parse_file();
             count = count + 1;
         }
     }
