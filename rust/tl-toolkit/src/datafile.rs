@@ -3,6 +3,17 @@ use std::fs::File;
 use std::io::Read;
 use std::ops::Range;
 
+pub struct DataFile {
+    pub filename: String,
+    pub blocks: Vec<RawDataBlock>,
+}
+
+pub struct RawDataBlock {
+    block_number: u16,
+    start_address: usize,
+    data_bytes: Vec<u8>,
+}
+
 pub struct DataFileParser {
     filepath: String,
 }
@@ -14,8 +25,8 @@ impl DataFileParser {
         }
     }
 
-    pub fn parse_file(&self) {
-        info!("Validating file {}", self.filepath);
+    pub fn parse_file(&self) -> DataFile {
+        debug!("Validating file {}", self.filepath);
         let mut file = File::open(&self.filepath).unwrap();
         debug!("Opened file");
 
@@ -84,6 +95,7 @@ impl DataFileParser {
             "File size according to header (left) disagrees with actual file size (right)"
         );
 
+        let mut blocks: Vec<RawDataBlock> = Vec::new();
         for (block_n, start_addr) in block_addrs.iter().enumerate() {
             debug!("would read {} at {}", block_n, start_addr);
 
@@ -101,7 +113,6 @@ impl DataFileParser {
                 start_addr, block_n, block_label
             );
 
-            // hypothesis: the next four bytes are the block size?
             let block_size_range: Range<usize> = (start_addr + 4)..(start_addr + 8);
             let block_size_bytes: [u8; 4] = file_bytes
                 .get(block_size_range)
@@ -112,7 +123,21 @@ impl DataFileParser {
             let data_start_addr = start_addr + 8;
             let data_end_addr = data_start_addr + block_size;
             debug!("Block {block_n} is block_size {block_size}, data is from 0x{data_start_addr:x} to 0x{data_end_addr:x}");
+
+            let block_data: Vec<u8> = Vec::from(
+                file_bytes.get(data_start_addr..data_end_addr).unwrap()
+            );
+            let block = RawDataBlock {
+                block_number: block_n.try_into().unwrap(),
+                start_address: *start_addr,
+                data_bytes: block_data,
+            };
+            blocks.push(block);
         }
-        info!("Finished validating file {}", self.filepath);
+        debug!("Finished validating file {}", self.filepath);
+        DataFile {
+            filename: self.filepath.clone(),
+            blocks: blocks,
+        }
     }
 }

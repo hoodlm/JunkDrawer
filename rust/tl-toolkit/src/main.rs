@@ -17,7 +17,8 @@ fn main() {
             let gamefile_path = gamefile.unwrap().path();
             let gamefile_path_str = gamefile_path.as_path().to_str().unwrap();
             let parser = DataFileParser::new(gamefile_path_str);
-            parser.parse_file();
+            let file = parser.parse_file();
+            info!("Parsed file {0}, {1} blocks", file.filename, file.blocks.len());
             count = count + 1;
         }
     }
