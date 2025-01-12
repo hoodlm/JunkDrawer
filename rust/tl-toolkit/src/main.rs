@@ -1,3 +1,5 @@
+use log::{debug, info};
+use simplelog::{ConfigBuilder, LevelFilter, SimpleLogger};
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -5,22 +7,32 @@ use std::io::Read;
 use std::ops::Range;
 
 fn main() {
+    log_setup();
     let home = env::var("HOME").unwrap();
     let game_directory = format!("{home}/.steam/steam/steamapps/common/Timelapse");
+    let mut count = 0;
     for cd in vec!["LOCAL", "I", "E", "M", "A", "Z"] {
         let cd_directory = format!("{game_directory}/{cd}");
         for gamefile in fs::read_dir(cd_directory).unwrap() {
             let gamefile_path = gamefile.unwrap().path();
             let gamefile_path_str = gamefile_path.as_path().to_str().unwrap();
             validate_file(gamefile_path_str);
+            count = count + 1;
         }
     }
+    info!("Done; validated {count} files");
+}
+
+/// Set up global logger.
+fn log_setup() {
+    let log_conf = ConfigBuilder::new().set_time_format_rfc3339().build();
+    let _ = SimpleLogger::init(LevelFilter::Info, log_conf);
 }
 
 fn validate_file(target_file_path: &str) {
-    eprintln!("Opening file {}", target_file_path);
+    info!("Validating file {}", target_file_path);
     let mut file = File::open(target_file_path).unwrap();
-    eprintln!("Opened file");
+    debug!("Opened file");
 
     // The first ~2K bytes include header/manifest data.
     // (The block offsets section is variable size depending
@@ -44,13 +56,13 @@ fn validate_file(target_file_path: &str) {
     let _ = file.read(&mut header_bytes).unwrap();
 
     let full_file_size = u32::from_le_bytes(header_bytes[0x04..0x08].try_into().unwrap());
-    eprintln!("Full file size: {0} bytes (0x{0:x})", &full_file_size);
+    debug!("Full file size: {0} bytes (0x{0:x})", &full_file_size);
 
     let number_blocks = u16::from_le_bytes(header_bytes[0x14..0x16].try_into().unwrap());
-    eprintln!("Number of blocks: {}", &number_blocks);
+    debug!("Number of blocks: {}", &number_blocks);
 
     let lppalppa = String::from_utf8(header_bytes[0x20..0x28].try_into().unwrap()).unwrap();
-    eprintln!("lppalppa? {}", &lppalppa);
+    debug!("lppalppa? {}", &lppalppa);
 
     let mut block_addrs: Vec<usize> = Vec::new();
 
@@ -74,9 +86,9 @@ fn validate_file(target_file_path: &str) {
 
     assert_eq!(block_addrs.len(), number_blocks.into());
 
-    eprintln!("Finished parsing the header; now load the full file into memory");
+    debug!("Finished parsing the header; now load the full file into memory");
     let mut file_bytes: Vec<u8> = vec![0; full_file_size.try_into().unwrap()];
-    eprintln!("Initialized file_bytes at {}", file_bytes.len());
+    debug!("Initialized file_bytes at {}", file_bytes.len());
 
     // TODO: don't close & reopen unnecessarily, reuse existing handler
     let mut file = File::open(&target_file_path).unwrap();
@@ -88,7 +100,7 @@ fn validate_file(target_file_path: &str) {
     );
 
     for (block_n, start_addr) in block_addrs.iter().enumerate() {
-        eprintln!("would read {} at {}", block_n, start_addr);
+        debug!("would read {} at {}", block_n, start_addr);
 
         // the first four bytes of every block are labeled with the block's number
         let block_label_range: Range<usize> = *start_addr..(start_addr + 4);
@@ -114,6 +126,7 @@ fn validate_file(target_file_path: &str) {
         let block_size: usize = u32::from_le_bytes(block_size_bytes).try_into().unwrap();
         let data_start_addr = start_addr + 8;
         let data_end_addr = data_start_addr + block_size;
-        eprintln!("Block {block_n} is block_size {block_size}, data is from 0x{data_start_addr:x} to 0x{data_end_addr:x}");
+        debug!("Block {block_n} is block_size {block_size}, data is from 0x{data_start_addr:x} to 0x{data_end_addr:x}");
     }
+    info!("Finished validating file {}", target_file_path);
 }
