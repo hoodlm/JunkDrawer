@@ -8,12 +8,12 @@ fn main() {
     let home = env::var("HOME").unwrap();
     let game_directory = format!("{home}/.steam/steam/steamapps/common/Timelapse");
     for cd in vec!["LOCAL", "I", "E", "M", "A", "Z"] {
-      let cd_directory = format!("{game_directory}/{cd}");
-      for gamefile in fs::read_dir(cd_directory).unwrap() {
-          let gamefile_path = gamefile.unwrap().path();
-          let gamefile_path_str = gamefile_path.as_path().to_str().unwrap();
-          validate_file(gamefile_path_str);
-      }
+        let cd_directory = format!("{game_directory}/{cd}");
+        for gamefile in fs::read_dir(cd_directory).unwrap() {
+            let gamefile_path = gamefile.unwrap().path();
+            let gamefile_path_str = gamefile_path.as_path().to_str().unwrap();
+            validate_file(gamefile_path_str);
+        }
     }
 }
 
@@ -28,7 +28,7 @@ fn validate_file(target_file_path: &str) {
     // the largest files.)
     //
     // Some important addresses:
-    // 
+    //
     // Range (hex)   Type       Purpose/Value
     // 00-03         uint32     65536 (file identifier?)
     // 04-07         uint32     total file size
@@ -55,15 +55,21 @@ fn validate_file(target_file_path: &str) {
     let mut block_addrs: Vec<usize> = Vec::new();
 
     for block_n in 0..number_blocks {
-      let pointer: usize = (0x400 + block_n * 4).into();
-      let block_offset_bytes: [u8; 4] = header_bytes.get(pointer..pointer+4)
+        let pointer: usize = (0x400 + block_n * 4).into();
+        let block_offset_bytes: [u8; 4] = header_bytes.get(pointer..pointer+4)
         .expect(&format!("couldn't get block offset bytes from header bytes (tried to read 4 bytes at 0x{pointer:x})"))
         .try_into()
         .expect("couldn't coerce header bytes into u8 array");
-      let block_offset = u32::from_le_bytes(block_offset_bytes);
-      // eprintln!("block {} starts at address 0x{1:x}", block_n, block_offset);
-      assert!(block_offset < full_file_size, "block {0} starts at address 0x{1:x}, which is after file ends at 0x{2:x}", block_n, block_offset, full_file_size);
-      block_addrs.push(block_offset.try_into().unwrap());
+        let block_offset = u32::from_le_bytes(block_offset_bytes);
+        // eprintln!("block {} starts at address 0x{1:x}", block_n, block_offset);
+        assert!(
+            block_offset < full_file_size,
+            "block {0} starts at address 0x{1:x}, which is after file ends at 0x{2:x}",
+            block_n,
+            block_offset,
+            full_file_size
+        );
+        block_addrs.push(block_offset.try_into().unwrap());
     }
 
     assert_eq!(block_addrs.len(), number_blocks.into());
@@ -75,24 +81,39 @@ fn validate_file(target_file_path: &str) {
     // TODO: don't close & reopen unnecessarily, reuse existing handler
     let mut file = File::open(&target_file_path).unwrap();
     let file_bytes_read = file.read(&mut file_bytes).unwrap();
-    assert_eq!(full_file_size, file_bytes_read.try_into().unwrap(), "File size according to header (left) disagrees with actual file size (right)");
+    assert_eq!(
+        full_file_size,
+        file_bytes_read.try_into().unwrap(),
+        "File size according to header (left) disagrees with actual file size (right)"
+    );
 
     for (block_n, start_addr) in block_addrs.iter().enumerate() {
         eprintln!("would read {} at {}", block_n, start_addr);
 
         // the first four bytes of every block are labeled with the block's number
-        let block_label_range: Range<usize> = *start_addr..(start_addr+4);
-        let block_label_bytes: [u8; 4] = file_bytes.get(block_label_range).unwrap().try_into().unwrap();
+        let block_label_range: Range<usize> = *start_addr..(start_addr + 4);
+        let block_label_bytes: [u8; 4] = file_bytes
+            .get(block_label_range)
+            .unwrap()
+            .try_into()
+            .unwrap();
         let block_label: usize = u32::from_le_bytes(block_label_bytes).try_into().unwrap();
-        assert_eq!(block_n, block_label, "First two bytes at 0x{0:x} should match block number {1}, was {2}", start_addr, block_n, block_label);
+        assert_eq!(
+            block_n, block_label,
+            "First two bytes at 0x{0:x} should match block number {1}, was {2}",
+            start_addr, block_n, block_label
+        );
 
         // hypothesis: the next four bytes are the block size?
-        let block_size_range: Range<usize> = (start_addr+4)..(start_addr+8);
-        let block_size_bytes: [u8; 4] = file_bytes.get(block_size_range).unwrap().try_into().unwrap();
+        let block_size_range: Range<usize> = (start_addr + 4)..(start_addr + 8);
+        let block_size_bytes: [u8; 4] = file_bytes
+            .get(block_size_range)
+            .unwrap()
+            .try_into()
+            .unwrap();
         let block_size: usize = u32::from_le_bytes(block_size_bytes).try_into().unwrap();
         let data_start_addr = start_addr + 8;
         let data_end_addr = data_start_addr + block_size;
         eprintln!("Block {block_n} is block_size {block_size}, data is from 0x{data_start_addr:x} to 0x{data_end_addr:x}");
     }
 }
-
