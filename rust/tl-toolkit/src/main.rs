@@ -1,5 +1,5 @@
 use crate::datafile::DataFileParser;
-use log::info;
+use log::{ info, error };
 use simplelog::{ConfigBuilder, LevelFilter, SimpleLogger};
 use std::env;
 use std::fs;
@@ -8,6 +8,24 @@ mod datafile;
 
 fn main() {
     log_setup();
+    let mut rl = rustyline::DefaultEditor::new().unwrap();
+    help();
+    loop {
+        let command = rl.readline(">> ").unwrap();
+        match command.trim() {
+            "exit" => break,
+            "loadall" => loadall(),
+            "help" => help(),
+            x => println!("Unknown command {x}"),
+        }
+    }
+}
+
+fn help() {
+    println!("Supported commands: help, loadall, exit");
+}
+
+fn loadall() {
     let home = env::var("HOME").unwrap();
     let game_directory = format!("{home}/.steam/steam/steamapps/common/Timelapse");
     let mut count = 0;

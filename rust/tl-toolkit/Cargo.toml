@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 log = "0.4.21"
+rustyline = "15.0.0"
 simplelog = "0.12.2"
