@@ -25,9 +25,10 @@ impl DataFileParser {
         }
     }
 
-    pub fn parse_file(&self) -> DataFile {
+    pub fn parse_file(&self) -> Result<DataFile, String> {
         debug!("Validating file {}", self.filepath);
-        let mut file = File::open(&self.filepath).unwrap();
+        let mut file = File::open(&self.filepath)
+            .map_err(|e| format!("Unable to open {0}: {e}", self.filepath))?;
         debug!("Opened file");
 
         // The first ~2K bytes include header/manifest data.
@@ -51,13 +52,26 @@ impl DataFileParser {
         let mut header_bytes: [u8; 50000] = [0; 50000];
         let _ = file.read(&mut header_bytes).unwrap();
 
-        let full_file_size = u32::from_le_bytes(header_bytes[0x04..0x08].try_into().unwrap());
+        let full_file_size = u32::from_le_bytes(
+            header_bytes[0x04..0x08]
+                .try_into()
+                .map_err(|e| format!("Failed to read file size from 0x04-0x08: {e}"))?,
+        );
         debug!("Full file size: {0} bytes (0x{0:x})", &full_file_size);
 
-        let number_blocks = u16::from_le_bytes(header_bytes[0x14..0x16].try_into().unwrap());
+        let number_blocks = u16::from_le_bytes(
+            header_bytes[0x14..0x16]
+                .try_into()
+                .map_err(|e| format!("Failed to read number of blocks from 0x14-0x16: {e}"))?,
+        );
         debug!("Number of blocks: {}", &number_blocks);
 
-        let lppalppa = String::from_utf8(header_bytes[0x20..0x28].try_into().unwrap()).unwrap();
+        let lppalppa = String::from_utf8(
+            header_bytes[0x20..0x28]
+                .try_into()
+                .map_err(|e| format!("Failed to read LPPALPPA constant from 0x20-0x28: {e}"))?,
+        )
+        .map_err(|e| format!("Unexpected: bytes at 0x20..0x28 are not valid utf8: {e}"))?;
         debug!("lppalppa? {}", &lppalppa);
 
         let mut block_addrs: Vec<usize> = Vec::new();
@@ -65,14 +79,13 @@ impl DataFileParser {
         for block_n in 0..number_blocks {
             let pointer: usize = (0x400 + block_n * 4).into();
             let block_offset_bytes: [u8; 4] = header_bytes.get(pointer..pointer+4)
-        .expect(&format!("couldn't get block offset bytes from header bytes (tried to read 4 bytes at 0x{pointer:x})"))
+        .ok_or(format!("couldn't get block offset bytes from header bytes (tried to read 4 bytes at 0x{pointer:x})"))?
         .try_into()
-        .expect("couldn't coerce header bytes into u8 array");
+        .map_err(|e| format!("couldn't coerce header bytes into u8 array: {e}"))?;
             let block_offset = u32::from_le_bytes(block_offset_bytes);
-            // eprintln!("block {} starts at address 0x{1:x}", block_n, block_offset);
             assert!(
                 block_offset < full_file_size,
-                "block {0} starts at address 0x{1:x}, which is after file ends at 0x{2:x}",
+                "Unexpected: block {0} starts at address 0x{1:x}, which is after file ends at 0x{2:x}",
                 block_n,
                 block_offset,
                 full_file_size
@@ -124,9 +137,8 @@ impl DataFileParser {
             let data_end_addr = data_start_addr + block_size;
             debug!("Block {block_n} is block_size {block_size}, data is from 0x{data_start_addr:x} to 0x{data_end_addr:x}");
 
-            let block_data: Vec<u8> = Vec::from(
-                file_bytes.get(data_start_addr..data_end_addr).unwrap()
-            );
+            let block_data: Vec<u8> =
+                Vec::from(file_bytes.get(data_start_addr..data_end_addr).unwrap());
             let block = RawDataBlock {
                 block_number: block_n.try_into().unwrap(),
                 start_address: *start_addr,
@@ -135,9 +147,9 @@ impl DataFileParser {
             blocks.push(block);
         }
         debug!("Finished validating file {}", self.filepath);
-        DataFile {
+        Ok(DataFile {
             filename: self.filepath.clone(),
             blocks: blocks,
-        }
+        })
     }
 }
