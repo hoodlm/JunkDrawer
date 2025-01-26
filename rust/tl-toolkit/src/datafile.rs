@@ -26,16 +26,31 @@ impl DataFileParser {
     }
 
     pub fn parse_file(&self) -> Result<DataFile, String> {
-        debug!("Validating file {}", self.filepath);
-        let mut file = File::open(&self.filepath)
-            .map_err(|e| format!("Unable to open {0}: {e}", self.filepath))?;
-        debug!("Opened file");
+        let filepath = &self.filepath;
+        debug!("Validating file {}", filepath);
+        let mut file =
+            File::open(filepath).map_err(|e| format!("Unable to open {filepath}: {e}"))?;
+        debug!("Opened file {filepath}");
+        let metadata = file
+            .metadata()
+            .map_err(|e| format!("Could not get metadata for {filepath}: {e}"))?;
+        let md_filesize: usize = metadata
+            .len()
+            .try_into()
+            .expect("Could not convert u64 into usize; maybe running on an unsupported platform?");
+        debug!("Allocating vec for reading file {filepath}; expecting {md_filesize} bytes");
+        let mut file_bytes: Vec<u8> = vec![0; md_filesize];
+        let file_bytes_read = file
+            .read(&mut file_bytes)
+            .map_err(|e| format!("Failed to read contents of file {filepath}: {e}"))?;
+        assert_eq!(
+            md_filesize,
+            file_bytes_read.try_into().unwrap(),
+            "File size according to file metadata (left) disagrees with actual bytes read (right)"
+        );
+        debug!("Successfully read file {filepath} into memory");
 
         // The first ~2K bytes include header/manifest data.
-        // (The block offsets section is variable size depending
-        // on the size of the files; from experimentation 50K is enough for
-        // the largest files.)
-        //
         // Some important addresses:
         //
         // Range (hex)   Type       Purpose/Value
@@ -49,68 +64,70 @@ impl DataFileParser {
         // 28-1FF        ?          zero padding?
         // 200-3FF       ?          ?
         // 400+          uint32     block offsets
-        let mut header_bytes: [u8; 50000] = [0; 50000];
-        let _ = file.read(&mut header_bytes).unwrap();
+        let file_id_range: Range<usize> = 0x00..0x04;
+        let file_id_bytes: [u8; 4] = file_bytes.get(file_id_range).unwrap().try_into().unwrap();
+        let file_id: usize = u32::from_le_bytes(file_id_bytes).try_into().unwrap();
+        if file_id != 65536 {
+            return Err(format!("File {filepath} malformed: expected exact value 65536 at range 0x00-0x03, actual value {file_id}"));
+        }
 
-        let full_file_size = u32::from_le_bytes(
-            header_bytes[0x04..0x08]
-                .try_into()
-                .map_err(|e| format!("Failed to read file size from 0x04-0x08: {e}"))?,
-        );
-        debug!("Full file size: {0} bytes (0x{0:x})", &full_file_size);
+        let header_file_size_range: Range<usize> = 0x04..0x08;
+        let header_file_size_bytes: [u8; 4] = file_bytes
+            .get(header_file_size_range)
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let header_file_size: usize = u32::from_le_bytes(header_file_size_bytes)
+            .try_into()
+            .unwrap();
+        if header_file_size != md_filesize {
+            return Err(format!("File {filepath} malformed: expected filesize in bytes ({md_filesize}) at range 0x04-0x07, actual value {header_file_size}"));
+        }
 
-        let number_blocks = u16::from_le_bytes(
-            header_bytes[0x14..0x16]
-                .try_into()
-                .map_err(|e| format!("Failed to read number of blocks from 0x14-0x16: {e}"))?,
-        );
+        // TODO: Parse 0x08-0x13
+
+        let number_blocks_range: Range<usize> = 0x14..0x16;
+        let number_blocks_bytes: [u8; 2] = file_bytes
+            .get(number_blocks_range)
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let number_blocks: u16 = u16::from_le_bytes(number_blocks_bytes).try_into().unwrap();
         debug!("Number of blocks: {}", &number_blocks);
 
-        let lppalppa = String::from_utf8(
-            header_bytes[0x20..0x28]
-                .try_into()
-                .map_err(|e| format!("Failed to read LPPALPPA constant from 0x20-0x28: {e}"))?,
-        )
-        .map_err(|e| format!("Unexpected: bytes at 0x20..0x28 are not valid utf8: {e}"))?;
-        debug!("lppalppa? {}", &lppalppa);
+        // TODO: Parse zero-padding at 0x16, or parse number_blocks as a u32?
+
+        // TODO: Parse 0x18-0x1F
+
+        let lppalppa_range: Range<usize> = 0x20..0x28;
+        let lppalppa_bytes: Vec<u8> = file_bytes.get(lppalppa_range).unwrap().to_vec();
+        let lppalppa = String::from_utf8(lppalppa_bytes)
+            .map_err(|e| format!("Unexpected: bytes at 0x20..0x28 are not valid utf8: {e}"))?;
+        if lppalppa != "LPPALPPA" {
+            return Err(format!("File {filepath} malformed? expected exact ASCII string LPPALPPA at range 0x20-0x27, actual value {lppalppa}"));
+        }
 
         let mut block_addrs: Vec<usize> = Vec::new();
 
         for block_n in 0..number_blocks {
             let pointer: usize = (0x400 + block_n * 4).into();
-            let block_offset_bytes: [u8; 4] = header_bytes.get(pointer..pointer+4)
-        .ok_or(format!("couldn't get block offset bytes from header bytes (tried to read 4 bytes at 0x{pointer:x})"))?
+            let block_offset_bytes: [u8; 4] = file_bytes.get(pointer..pointer+4)
+        .ok_or(format!("couldn't get block offset bytes from {filepath} (tried to read 4 bytes at 0x{pointer:x})"))?
         .try_into()
         .map_err(|e| format!("couldn't coerce header bytes into u8 array: {e}"))?;
-            let block_offset = u32::from_le_bytes(block_offset_bytes);
+            let block_offset: usize = u32::from_le_bytes(block_offset_bytes).try_into().unwrap();
             assert!(
-                block_offset < full_file_size,
-                "Unexpected: block {0} starts at address 0x{1:x}, which is after file ends at 0x{2:x}",
-                block_n,
-                block_offset,
-                full_file_size
+                block_offset < md_filesize,
+                "Unexpected: block {block_n} starts at address 0x{block_offset:x}, which is after file ends at 0x{md_filesize:x}",
             );
             block_addrs.push(block_offset.try_into().unwrap());
         }
 
         assert_eq!(block_addrs.len(), number_blocks.into());
 
-        debug!("Finished parsing the header; now load the full file into memory");
-        let mut file_bytes: Vec<u8> = vec![0; full_file_size.try_into().unwrap()];
-        debug!("Initialized file_bytes at {}", file_bytes.len());
-
-        // TODO: don't close & reopen unnecessarily, reuse existing handler
-        let mut file = File::open(&self.filepath).unwrap();
-        let file_bytes_read = file.read(&mut file_bytes).unwrap();
-        assert_eq!(
-            full_file_size,
-            file_bytes_read.try_into().unwrap(),
-            "File size according to header (left) disagrees with actual file size (right)"
-        );
-
         let mut blocks: Vec<RawDataBlock> = Vec::new();
         for (block_n, start_addr) in block_addrs.iter().enumerate() {
-            debug!("would read {} at {}", block_n, start_addr);
+            debug!("Reading block {}, staring at {}", block_n, start_addr);
 
             // the first four bytes of every block are labeled with the block's number
             let block_label_range: Range<usize> = *start_addr..(start_addr + 4);
