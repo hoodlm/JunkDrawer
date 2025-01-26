@@ -25,6 +25,33 @@ impl DataFileParser {
         }
     }
 
+    fn u16_at_addr(&self, buffer: &Vec<u8>, addr: usize) -> Result<u16, String> {
+        let range: Range<usize> = addr..addr + 2;
+        let bytes: [u8; 2] = buffer.get(range).unwrap().try_into().unwrap();
+        let result: u16 = u16::from_le_bytes(bytes)
+            .try_into()
+            .map_err(|e| format!("Two bytes at addr 0x{addr:x} are not a valid u16: {e}"))?;
+        Ok(result)
+    }
+
+    fn u32_at_addr(&self, buffer: &Vec<u8>, addr: usize) -> Result<u32, String> {
+        let range: Range<usize> = addr..addr + 4;
+        let bytes: [u8; 4] = buffer.get(range).unwrap().try_into().unwrap();
+        let result: u32 = u32::from_le_bytes(bytes)
+            .try_into()
+            .map_err(|e| format!("Two bytes at addr 0x{addr:x} are not a valid u32: {e}"))?;
+        Ok(result)
+    }
+
+    fn string_at_addr(&self, buffer: &Vec<u8>, addr: usize, len: usize) -> Result<String, String> {
+        let end: usize = addr + len;
+        let range: Range<usize> = addr..end;
+        let bytes: Vec<u8> = buffer.get(range).unwrap().to_vec();
+        let s = String::from_utf8(bytes)
+            .map_err(|e| format!("Bytes in range 0x{addr:x}-0x{end:x} are not valid utf8: {e}"))?;
+        Ok(s)
+    }
+
     pub fn parse_file(&self) -> Result<DataFile, String> {
         let filepath = &self.filepath;
         debug!("Validating file {}", filepath);
@@ -64,45 +91,24 @@ impl DataFileParser {
         // 28-1FF        ?          zero padding?
         // 200-3FF       ?          ?
         // 400+          uint32     block offsets
-        let file_id_range: Range<usize> = 0x00..0x04;
-        let file_id_bytes: [u8; 4] = file_bytes.get(file_id_range).unwrap().try_into().unwrap();
-        let file_id: usize = u32::from_le_bytes(file_id_bytes).try_into().unwrap();
+        let file_id = self.u32_at_addr(&file_bytes, 0x00)?;
         if file_id != 65536 {
             return Err(format!("File {filepath} malformed: expected exact value 65536 at range 0x00-0x03, actual value {file_id}"));
         }
 
-        let header_file_size_range: Range<usize> = 0x04..0x08;
-        let header_file_size_bytes: [u8; 4] = file_bytes
-            .get(header_file_size_range)
-            .unwrap()
-            .try_into()
-            .unwrap();
-        let header_file_size: usize = u32::from_le_bytes(header_file_size_bytes)
-            .try_into()
-            .unwrap();
+        let header_file_size: usize = self.u32_at_addr(&file_bytes, 0x04)?.try_into().unwrap();
         if header_file_size != md_filesize {
             return Err(format!("File {filepath} malformed: expected filesize in bytes ({md_filesize}) at range 0x04-0x07, actual value {header_file_size}"));
         }
 
         // TODO: Parse 0x08-0x13
 
-        let number_blocks_range: Range<usize> = 0x14..0x16;
-        let number_blocks_bytes: [u8; 2] = file_bytes
-            .get(number_blocks_range)
-            .unwrap()
-            .try_into()
-            .unwrap();
-        let number_blocks: u16 = u16::from_le_bytes(number_blocks_bytes).try_into().unwrap();
-        debug!("Number of blocks: {}", &number_blocks);
+        let number_blocks = self.u16_at_addr(&file_bytes, 0x14)?;
 
         // TODO: Parse zero-padding at 0x16, or parse number_blocks as a u32?
-
         // TODO: Parse 0x18-0x1F
 
-        let lppalppa_range: Range<usize> = 0x20..0x28;
-        let lppalppa_bytes: Vec<u8> = file_bytes.get(lppalppa_range).unwrap().to_vec();
-        let lppalppa = String::from_utf8(lppalppa_bytes)
-            .map_err(|e| format!("Unexpected: bytes at 0x20..0x28 are not valid utf8: {e}"))?;
+        let lppalppa = self.string_at_addr(&file_bytes, 0x20, 8)?;
         if lppalppa != "LPPALPPA" {
             return Err(format!("File {filepath} malformed? expected exact ASCII string LPPALPPA at range 0x20-0x27, actual value {lppalppa}"));
         }
@@ -111,11 +117,7 @@ impl DataFileParser {
 
         for block_n in 0..number_blocks {
             let pointer: usize = (0x400 + block_n * 4).into();
-            let block_offset_bytes: [u8; 4] = file_bytes.get(pointer..pointer+4)
-        .ok_or(format!("couldn't get block offset bytes from {filepath} (tried to read 4 bytes at 0x{pointer:x})"))?
-        .try_into()
-        .map_err(|e| format!("couldn't coerce header bytes into u8 array: {e}"))?;
-            let block_offset: usize = u32::from_le_bytes(block_offset_bytes).try_into().unwrap();
+            let block_offset: usize = self.u32_at_addr(&file_bytes, pointer)?.try_into().unwrap();
             assert!(
                 block_offset < md_filesize,
                 "Unexpected: block {block_n} starts at address 0x{block_offset:x}, which is after file ends at 0x{md_filesize:x}",
@@ -130,26 +132,21 @@ impl DataFileParser {
             debug!("Reading block {}, staring at {}", block_n, start_addr);
 
             // the first four bytes of every block are labeled with the block's number
-            let block_label_range: Range<usize> = *start_addr..(start_addr + 4);
-            let block_label_bytes: [u8; 4] = file_bytes
-                .get(block_label_range)
-                .unwrap()
+            let block_label: usize = self
+                .u32_at_addr(&file_bytes, *start_addr)?
                 .try_into()
                 .unwrap();
-            let block_label: usize = u32::from_le_bytes(block_label_bytes).try_into().unwrap();
             assert_eq!(
                 block_n, block_label,
                 "First two bytes at 0x{0:x} should match block number {1}, was {2}",
                 start_addr, block_n, block_label
             );
-
-            let block_size_range: Range<usize> = (start_addr + 4)..(start_addr + 8);
-            let block_size_bytes: [u8; 4] = file_bytes
-                .get(block_size_range)
-                .unwrap()
+            // the next four bytes are the block's size, in bytes
+            let block_size: usize = self
+                .u32_at_addr(&file_bytes, start_addr + 4)?
                 .try_into()
                 .unwrap();
-            let block_size: usize = u32::from_le_bytes(block_size_bytes).try_into().unwrap();
+
             let data_start_addr = start_addr + 8;
             let data_end_addr = data_start_addr + block_size;
             debug!("Block {block_n} is block_size {block_size}, data is from 0x{data_start_addr:x} to 0x{data_end_addr:x}");
