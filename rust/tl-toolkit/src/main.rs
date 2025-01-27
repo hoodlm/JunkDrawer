@@ -1,6 +1,7 @@
-use crate::datafile::DataFileParser;
-use log::{error, info};
+use crate::datafile::{DataFile, DataFileParser, RawDataBlock};
+use log::{debug, error, info, warn};
 use simplelog::{ConfigBuilder, LevelFilter, SimpleLogger};
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 
@@ -32,26 +33,39 @@ fn log_setup() {
     let _ = SimpleLogger::init(LevelFilter::Info, log_conf);
 }
 
-struct TLToolkit {}
+struct TLToolkit {
+    blocks: HashMap<String, RawDataBlock>,
+}
 
 impl TLToolkit {
     fn new() -> Self {
-        Self {}
+        Self {
+            blocks: HashMap::new(),
+        }
     }
 
     fn loadall(&mut self) {
+        info!("Clearing existing cache before reloading");
+        self.blocks.clear();
         match self.loadall_internal() {
-            Ok(_) => {}
+            Ok(files) => {
+                let count = files.len();
+                if let Err(e) = self.cache_files(files) {
+                    warn!("Failed to insert data into block cache: {e}");
+                } else {
+                    info!("Successfully loaded and cached {count} files");
+                }
+            }
             Err(e) => {
                 error!("loadall failed: {e}");
             }
         }
     }
 
-    fn loadall_internal(&mut self) -> Result<(), String> {
+    fn loadall_internal(&mut self) -> Result<Vec<DataFile>, String> {
         let home = env::var("HOME").unwrap();
         let game_directory = format!("{home}/.steam/steam/steamapps/common/Timelapse");
-        let mut count = 0;
+        let mut files: Vec<DataFile> = Vec::new();
         for cd in vec!["LOCAL", "I", "E", "M", "A", "Z"] {
             let cd_directory = format!("{game_directory}/{cd}");
             for gamefile in fs::read_dir(cd_directory).map_err(|it| it.to_string())? {
@@ -63,10 +77,26 @@ impl TLToolkit {
                     file.filename,
                     file.blocks.len()
                 );
-                count = count + 1;
+                files.push(file);
             }
         }
-        info!("Done; validated {count} files");
+        info!("Done; validated {} files", files.len());
+        Ok(files)
+    }
+
+    fn cache_files(&mut self, files: Vec<DataFile>) -> Result<(), String> {
+        for file in files {
+            self.cache_blocks(&file.filename, file.blocks)?;
+        }
+        Ok(())
+    }
+
+    fn cache_blocks(&mut self, filename: &str, blocks: Vec<RawDataBlock>) -> Result<(), String> {
+        for block in blocks {
+            let block_id = format!("{}-{}", filename, block.block_number);
+            self.blocks.insert(block_id.clone(), block);
+            debug!("Cached {block_id}");
+        }
         Ok(())
     }
 }

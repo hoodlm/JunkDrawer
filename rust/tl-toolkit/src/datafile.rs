@@ -10,9 +10,9 @@ pub struct DataFile {
 }
 
 pub struct RawDataBlock {
-    block_number: u16,
+    pub block_number: u16,
     start_address: usize,
-    data_bytes: Vec<u8>,
+    pub data_bytes: Vec<u8>,
 }
 
 pub struct DataFileParser {
