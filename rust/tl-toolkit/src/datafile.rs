@@ -15,6 +15,20 @@ pub struct RawDataBlock {
     pub data_bytes: Vec<u8>,
 }
 
+impl RawDataBlock {
+    pub fn peek_u32(&self, addr: usize) -> Result<u32, String> {
+        u32_at_addr(&self.data_bytes, addr)
+    }
+
+    pub fn peek_u16(&self, addr: usize) -> Result<u16, String> {
+        u16_at_addr(&self.data_bytes, addr)
+    }
+
+    pub fn peek_string(&self, addr: usize, len: usize) -> Result<String, String> {
+        string_at_addr(&self.data_bytes, addr, len)
+    }
+}
+
 pub struct DataFileParser {
     filepath: PathBuf,
 }

@@ -19,13 +19,15 @@ fn main() {
             "exit" => break,
             "loadall" => tk.loadall(),
             "help" => help(),
+            "peek" => tk.peek(),       /* temporary proof of concept */
+            "peekall" => tk.peekall(), /* temporary proof of concept */
             x => println!("Unknown command {x}"),
         }
     }
 }
 
 fn help() {
-    println!("Supported commands: help, loadall, exit");
+    println!("Supported commands: help, loadall, exit, peek, peekall");
 }
 
 /// Set up global logger.
@@ -42,6 +44,40 @@ impl TLToolkit {
     fn new() -> Self {
         Self {
             blocks: HashMap::new(),
+        }
+    }
+
+    fn peekall(&self) {
+        // hardcoding for proof of concept
+        let offset: usize = 0x00;
+        for (block_id, block) in &self.blocks {
+            if block_id.starts_with("A001") {
+                self.peek_internal(block_id, block, offset);
+            }
+        }
+    }
+
+    fn peek(&self) {
+        // hardcoding for proof of concept
+        let block_id = "I008.STG-1";
+        let offset: usize = 0x00;
+        let block = self.blocks.get(block_id);
+        if block.is_none() {
+            warn!("{block_id} does not exist or is not loaded yet");
+            return;
+        }
+        self.peek_internal(block_id, block.unwrap(), offset);
+    }
+
+    fn peek_internal(&self, block_id: &str, block: &RawDataBlock, offset: usize) {
+        let data = block.peek_u32(offset);
+        match data {
+            Ok(data) => {
+                info!("{block_id} at 0x{offset:x}: 0x{data:x} {data}");
+            }
+            Err(e) => {
+                warn!("{block_id} at 0x{offset:x} could not be read: {e}");
+            }
         }
     }
 
