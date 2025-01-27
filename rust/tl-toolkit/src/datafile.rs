@@ -2,6 +2,7 @@ use log::{debug, info};
 use std::fs::File;
 use std::io::Read;
 use std::ops::Range;
+use std::path::PathBuf;
 
 pub struct DataFile {
     pub filename: String,
@@ -15,14 +16,12 @@ pub struct RawDataBlock {
 }
 
 pub struct DataFileParser {
-    filepath: String,
+    filepath: PathBuf,
 }
 
 impl DataFileParser {
-    pub fn new(filepath: &str) -> Self {
-        Self {
-            filepath: filepath.to_string(),
-        }
+    pub fn new(filepath: PathBuf) -> Self {
+        Self { filepath }
     }
 
     fn u16_at_addr(&self, buffer: &Vec<u8>, addr: usize) -> Result<u16, String> {
@@ -54,28 +53,35 @@ impl DataFileParser {
 
     pub fn parse_file(&self) -> Result<DataFile, String> {
         let filepath = &self.filepath;
-        debug!("Validating file {}", filepath);
+        let filename = filepath
+            .file_name()
+            .expect(&format!(
+                "filepath {filepath:?} should have at least one component"
+            ))
+            .to_str()
+            .expect("Filepath {filepath:?} should be valid unicode");
+        debug!("Validating file {}", filename);
         let mut file =
-            File::open(filepath).map_err(|e| format!("Unable to open {filepath}: {e}"))?;
-        debug!("Opened file {filepath}");
+            File::open(filepath).map_err(|e| format!("Unable to open {filepath:?}: {e}"))?;
+        debug!("Opened file {filename}");
         let metadata = file
             .metadata()
-            .map_err(|e| format!("Could not get metadata for {filepath}: {e}"))?;
+            .map_err(|e| format!("Could not get metadata for {filename}: {e}"))?;
         let md_filesize: usize = metadata
             .len()
             .try_into()
             .expect("Could not convert u64 into usize; maybe running on an unsupported platform?");
-        debug!("Allocating vec for reading file {filepath}; expecting {md_filesize} bytes");
+        debug!("Allocating vec for reading file {filename}; expecting {md_filesize} bytes");
         let mut file_bytes: Vec<u8> = vec![0; md_filesize];
         let file_bytes_read = file
             .read(&mut file_bytes)
-            .map_err(|e| format!("Failed to read contents of file {filepath}: {e}"))?;
+            .map_err(|e| format!("Failed to read contents of file {filename}: {e}"))?;
         assert_eq!(
             md_filesize,
             file_bytes_read.try_into().unwrap(),
             "File size according to file metadata (left) disagrees with actual bytes read (right)"
         );
-        debug!("Successfully read file {filepath} into memory");
+        debug!("Successfully read file {filename} into memory");
 
         // The first ~2K bytes include header/manifest data.
         // Some important addresses:
@@ -93,12 +99,12 @@ impl DataFileParser {
         // 400+          uint32     block offsets
         let file_id = self.u32_at_addr(&file_bytes, 0x00)?;
         if file_id != 65536 {
-            return Err(format!("File {filepath} malformed: expected exact value 65536 at range 0x00-0x03, actual value {file_id}"));
+            return Err(format!("File {filename} malformed: expected exact value 65536 at range 0x00-0x03, actual value {file_id}"));
         }
 
         let header_file_size: usize = self.u32_at_addr(&file_bytes, 0x04)?.try_into().unwrap();
         if header_file_size != md_filesize {
-            return Err(format!("File {filepath} malformed: expected filesize in bytes ({md_filesize}) at range 0x04-0x07, actual value {header_file_size}"));
+            return Err(format!("File {filename} malformed: expected filesize in bytes ({md_filesize}) at range 0x04-0x07, actual value {header_file_size}"));
         }
 
         // TODO: Parse 0x08-0x13
@@ -110,7 +116,7 @@ impl DataFileParser {
 
         let lppalppa = self.string_at_addr(&file_bytes, 0x20, 8)?;
         if lppalppa != "LPPALPPA" {
-            return Err(format!("File {filepath} malformed? expected exact ASCII string LPPALPPA at range 0x20-0x27, actual value {lppalppa}"));
+            return Err(format!("File {filename} malformed? expected exact ASCII string LPPALPPA at range 0x20-0x27, actual value {lppalppa}"));
         }
 
         let mut block_addrs: Vec<usize> = Vec::new();
@@ -160,10 +166,10 @@ impl DataFileParser {
             };
             blocks.push(block);
         }
-        debug!("Finished validating file {}", self.filepath);
+        debug!("Finished validating file {:?}", self.filepath);
         Ok(DataFile {
-            filename: self.filepath.clone(),
-            blocks: blocks,
+            filename: filename.to_string(),
+            blocks,
         })
     }
 }

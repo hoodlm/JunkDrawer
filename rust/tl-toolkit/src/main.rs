@@ -42,11 +42,7 @@ fn loadall_internal() -> Result<(), String> {
         let cd_directory = format!("{game_directory}/{cd}");
         for gamefile in fs::read_dir(cd_directory).map_err(|it| it.to_string())? {
             let gamefile_path = gamefile.map_err(|it| it.to_string())?.path();
-            let gamefile_path_str = gamefile_path
-                .as_path()
-                .to_str()
-                .expect("Unexpected: path for {gamefile} is not valid UTF-8");
-            let parser = DataFileParser::new(&gamefile_path_str);
+            let parser = DataFileParser::new(gamefile_path);
             let file = parser.parse_file()?;
             info!(
                 "Parsed file {0}, {1} blocks",
