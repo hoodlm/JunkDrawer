@@ -1,7 +1,7 @@
 use crate::datafile::{DataFile, DataFileParser, RawDataBlock};
 use log::{debug, error, info, warn};
 use simplelog::{ConfigBuilder, LevelFilter, SimpleLogger};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 
@@ -37,13 +37,13 @@ fn log_setup() {
 }
 
 struct TLToolkit {
-    blocks: HashMap<String, RawDataBlock>,
+    blocks: BTreeMap<String, RawDataBlock>,
 }
 
 impl TLToolkit {
     fn new() -> Self {
         Self {
-            blocks: HashMap::new(),
+            blocks: BTreeMap::new(),
         }
     }
 
@@ -51,15 +51,13 @@ impl TLToolkit {
         // hardcoding for proof of concept
         let offset: usize = 0x00;
         for (block_id, block) in &self.blocks {
-            if block_id.starts_with("A001") {
-                self.peek_internal(block_id, block, offset);
-            }
+            self.peek_internal(block_id, block, offset);
         }
     }
 
     fn peek(&self) {
         // hardcoding for proof of concept
-        let block_id = "I008.STG-1";
+        let block_id = "I008.STG-0001";
         let offset: usize = 0x00;
         let block = self.blocks.get(block_id);
         if block.is_none() {
@@ -130,7 +128,7 @@ impl TLToolkit {
 
     fn cache_blocks(&mut self, filename: &str, blocks: Vec<RawDataBlock>) -> Result<(), String> {
         for block in blocks {
-            let block_id = format!("{}-{}", filename, block.block_number);
+            let block_id = format!("{}-{:04}", filename, block.block_number);
             self.blocks.insert(block_id.clone(), block);
             debug!("Cached {block_id}");
         }
