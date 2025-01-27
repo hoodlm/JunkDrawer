@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 
+mod byteutil;
 mod datafile;
 
 fn main() {
