@@ -14,20 +14,32 @@ fn main() {
     let mut tk = TLToolkit::new();
     help();
     loop {
-        let command = rl.readline(">> ").unwrap();
-        match command.trim() {
+        let full_command = rl.readline(">> ").unwrap();
+        let command_components: Vec<&str> = full_command.split_whitespace().collect();
+        let base_command = command_components.get(0).unwrap_or(&"help");
+        match *base_command {
             "exit" => break,
             "loadall" => tk.loadall(),
             "help" => help(),
-            "peek" => tk.peek(),       /* temporary proof of concept */
-            "peekall" => tk.peekall(), /* temporary proof of concept */
+            "peek" => {
+                match tk.peek(command_components) {
+                    Err(e) => println!("{}", e),
+                    Ok(ok) => println!("{}", ok),
+                }
+            },
+            "peekall" => {
+                match tk.peekall(command_components) {
+                    Err(e) => println!("{}", e),
+                    Ok(ok) => println!("{}", ok),
+                }
+            },
             x => println!("Unknown command {x}"),
         }
     }
 }
 
 fn help() {
-    println!("Supported commands: help, loadall, exit, peek, peekall");
+    println!("Supported commands: help, loadall, exit, peek [file] [offset], peekall [offset]");
 }
 
 /// Set up global logger.
@@ -47,34 +59,45 @@ impl TLToolkit {
         }
     }
 
-    fn peekall(&self) {
-        // hardcoding for proof of concept
-        let offset: usize = 0x00;
-        for (block_id, block) in &self.blocks {
-            self.peek_internal(block_id, block, offset);
+    fn peekall(&self, command_components: Vec<&str>) -> Result<String, String> {
+        if command_components.len() != 2 {
+            return Err("Usage: peekall [offset] - for example, peekall 128".to_string());
         }
+        // hardcoding for proof of concept
+        let offset = command_components.get(1).unwrap();
+        let offset: usize = offset.parse().map_err(|e| format!("Offset argument {offset} is invalid (should be a positive integer): {e}"))?;
+        let mut accum: Vec<String> = Vec::new();
+        for (block_id, block) in &self.blocks {
+            let result = self.peek_internal(block_id, block, offset)?;
+            accum.push(result);
+        }
+        Ok(accum.join("\n"))
     }
 
-    fn peek(&self) {
+    fn peek(&self, command_components: Vec<&str>) -> Result<String, String> {
+        if command_components.len() != 3 {
+            return Err("Usage: peek [block] [offset] - for example, peek I008.STG-0001 256".to_string());
+        }
         // hardcoding for proof of concept
-        let block_id = "I008.STG-0001";
-        let offset: usize = 0x00;
+        let block_id: &str = command_components.get(1).unwrap();
+        let offset = command_components.get(2).unwrap();
+        let offset: usize = offset.parse().map_err(|e| format!("Offset argument {offset} is invalid (should be a positive integer): {e}"))?;
         let block = self.blocks.get(block_id);
         if block.is_none() {
-            warn!("{block_id} does not exist or is not loaded yet");
-            return;
+            Err(format!("{block_id} does not exist or is not loaded yet"))
+        } else {
+            self.peek_internal(block_id, block.unwrap(), offset)
         }
-        self.peek_internal(block_id, block.unwrap(), offset);
     }
 
-    fn peek_internal(&self, block_id: &str, block: &RawDataBlock, offset: usize) {
+    fn peek_internal(&self, block_id: &str, block: &RawDataBlock, offset: usize) -> Result<String, String> {
         let data = block.peek_u32(offset);
         match data {
             Ok(data) => {
-                info!("{block_id} at 0x{offset:x}: 0x{data:x} {data}");
+                Ok(format!("{block_id} at 0x{offset:x}: 0x{data:x} {data}"))
             }
             Err(e) => {
-                warn!("{block_id} at 0x{offset:x} could not be read: {e}");
+                Err(format!("{block_id} at 0x{offset:x} could not be read: {e}"))
             }
         }
     }
