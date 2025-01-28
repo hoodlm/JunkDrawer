@@ -77,8 +77,7 @@ impl DataFileParser {
         // 00-03         uint32     65536 (file identifier?)
         // 04-07         uint32     total file size
         // 08-13         ?          ?
-        // 14-15         uint16     number of blocks
-        // 16-17         ?          zero padding?
+        // 14-17         uint32     number of blocks
         // 18-1F         ?          ?
         // 20-27         ascii      "LPPALPPA" identifier for DreamFactory data files
         // 28-1FF        ?          zero padding?
@@ -96,9 +95,8 @@ impl DataFileParser {
 
         // TODO: Parse 0x08-0x13
 
-        let number_blocks = u16_at_addr(&file_bytes, 0x14)?;
+        let number_blocks: usize = u32_at_addr(&file_bytes, 0x14)?.try_into().unwrap();
 
-        // TODO: Parse zero-padding at 0x16, or parse number_blocks as a u32?
         // TODO: Parse 0x18-0x1F
 
         let lppalppa = string_at_addr(&file_bytes, 0x20, 8)?;
