@@ -4,6 +4,7 @@ use simplelog::{ConfigBuilder, LevelFilter, SimpleLogger};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
+use std::ops::Range;
 
 mod byteutil;
 mod datafile;
@@ -21,6 +22,10 @@ fn main() {
             "exit" => break,
             "loadall" => tk.loadall(),
             "help" => help(),
+            "extract" => match tk.extract(command_components) {
+                    Err(e) => println!("{}", e),
+                    Ok(ok) => println!("{}", ok),
+            }
             "blockinfo" => {
                 match tk.block_info(command_components) {
                     Err(e) => println!("{}", e),
@@ -45,7 +50,7 @@ fn main() {
 }
 
 fn help() {
-    println!("Supported commands: help, loadall, exit, peek [file] [offset], peekall [offset], blockinfo [blockname]");
+    println!("Supported commands: help, loadall, exit, peek [file] [offset], peekall [offset], blockinfo [blockname], extract");
 }
 
 /// Set up global logger.
@@ -63,6 +68,19 @@ impl TLToolkit {
         Self {
             blocks: BTreeMap::new(),
         }
+    }
+
+    fn extract(&self, command_components: Vec<&str>) -> Result<String, String> {
+        // Hardcoding for now; will extract from command components later
+        let block_id = "I005.STG-0006";
+        let block = self.blocks.get(block_id).ok_or(
+            format!("{block_id} does not exist or is not loaded yet"))?;
+        let start: usize = 0x0c;
+        let end: usize = block.data_bytes.len() - (0x0c + 1);
+        let data_range: Range<usize> = start..end;
+        let bitmap = block.data_bytes.get(data_range).unwrap().to_vec();
+        let expanded = byteutil::run_length_decode(&bitmap, 640 * 480)?;
+        Ok("not implemented yet".to_string())
     }
 
     fn peekall(&self, command_components: Vec<&str>) -> Result<String, String> {
