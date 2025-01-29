@@ -21,6 +21,12 @@ fn main() {
             "exit" => break,
             "loadall" => tk.loadall(),
             "help" => help(),
+            "blockinfo" => {
+                match tk.block_info(command_components) {
+                    Err(e) => println!("{}", e),
+                    Ok(ok) => println!("{}", ok),
+                }
+            }
             "peek" => {
                 match tk.peek(command_components) {
                     Err(e) => println!("{}", e),
@@ -39,7 +45,7 @@ fn main() {
 }
 
 fn help() {
-    println!("Supported commands: help, loadall, exit, peek [file] [offset], peekall [offset]");
+    println!("Supported commands: help, loadall, exit, peek [file] [offset], peekall [offset], blockinfo [blockname]");
 }
 
 /// Set up global logger.
@@ -63,7 +69,6 @@ impl TLToolkit {
         if command_components.len() != 2 {
             return Err("Usage: peekall [offset] - for example, peekall 128".to_string());
         }
-        // hardcoding for proof of concept
         let offset = command_components.get(1).unwrap();
         let offset: usize = offset.parse().map_err(|e| format!("Offset argument {offset} is invalid (should be a positive integer): {e}"))?;
         let mut accum: Vec<String> = Vec::new();
@@ -74,11 +79,23 @@ impl TLToolkit {
         Ok(accum.join("\n"))
     }
 
+    fn block_info(&self, command_components: Vec<&str>) -> Result<String, String> {
+        if command_components.len() != 2 {
+            return Err("Usage: blockinfo [block] - for example, blockinfo I008.STG-0001".to_string());
+        }
+        let block_id: &str = command_components.get(1).unwrap();
+        let block = self.blocks.get(block_id);
+        if let Some(block) = block {
+            Ok(format!("{block_id}: {0} bytes, starts at addr 0x{1:x}", block.data_bytes.len(), block.start_address))
+        } else {
+            Err(format!("{block_id} does not exist or is not loaded yet"))
+        }
+    }
+
     fn peek(&self, command_components: Vec<&str>) -> Result<String, String> {
         if command_components.len() != 3 {
             return Err("Usage: peek [block] [offset] - for example, peek I008.STG-0001 256".to_string());
         }
-        // hardcoding for proof of concept
         let block_id: &str = command_components.get(1).unwrap();
         let offset = command_components.get(2).unwrap();
         let offset: usize = offset.parse().map_err(|e| format!("Offset argument {offset} is invalid (should be a positive integer): {e}"))?;

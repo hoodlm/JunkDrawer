@@ -11,7 +11,7 @@ pub struct DataFile {
 
 pub struct RawDataBlock {
     pub block_number: u16,
-    start_address: usize,
+    pub start_address: usize,
     pub data_bytes: Vec<u8>,
 }
 
