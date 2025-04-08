@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -eux
+
+CIV2_ISO_PATH="$HOME/civ2iso"
+CIV2_ISO_FILENAME="Civilization.2.Multiplayer.Gold.Edition.bin"
+CIV2_INSTALL_PATH="$HOME/.wine/drive_c/Program Files (x86)/MicroProse Software/Civilization II Multiplayer Gold Edition"
+
+fail() {
+  msg=$1
+  echo $msg
+  exit 1
+}
+
+check_dependency() {
+  dep=$1
+  command -v "$dep" || fail "$dep is not installed"
+}
+
+cd_already_loaded() {
+  cdemu status | grep -E "$CIV2_ISO_FILENAME"
+}
+
+check_dependency "wine"
+check_dependency "cdemu"
+
+if ! cd_already_loaded; then
+  cdemu load 0 "$CIV2_ISO_PATH/$CIV2_ISO_FILENAME"
+fi
+
+pushd "$CIV2_INSTALL_PATH"
+wine "./civ2.exe"
