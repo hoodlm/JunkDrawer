@@ -45,10 +45,11 @@ ExecStart=/usr/bin/bash /home/tbell-bot/run-tbell-bot.sh
 Restart=always
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
 EOF"
 
 echo "Starting systemd unit"
 sudo systemctl daemon-reload
+sudo systemctl enable tbell-bot.service
 sudo systemctl start tbell-bot.service
 sudo systemctl restart tbell-bot.service
