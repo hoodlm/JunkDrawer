@@ -2,6 +2,7 @@ require 'fileutils'
 require 'telegram/bot'
 require 'base64'
 
+LOGGER = Logger.new($stderr)
 CONFIG_DIRECTORY = ENV['HOME'] + "/.tbellbot"
 FileUtils.mkdir_p(CONFIG_DIRECTORY)
 TOKEN = File.open(CONFIG_DIRECTORY + "/token.txt").read.chomp
@@ -107,7 +108,7 @@ class QuoteDatabase
   end
 
   def search(search_term)
-    $stderr.puts("searching for quotes that include: #{search_term}")
+    LOGGER.info("searching for quotes that include: #{search_term}")
     matches = @quotes.filter do |quote|
       quote.downcase.include?(search_term.downcase)
     end
@@ -117,15 +118,16 @@ end
 
 c = CommandDispatcher.new
 
-Telegram::Bot::Client.run(TOKEN, logger: Logger.new($stderr)) do |bot|
+Telegram::Bot::Client.run(TOKEN, logger: LOGGER) do |bot|
   bot.listen do |message|
     response = begin
       c.handle_message(message)
     rescue => ex
-      $stderr.puts($@)
+      LOGGER.error($@)
       "ERROR: #{ex}"
     end  
     if response
+      LOGGER.info("Responding: #{response}")
       bot.api.send_message(chat_id: message.chat.id, text: response)
     end
   end
