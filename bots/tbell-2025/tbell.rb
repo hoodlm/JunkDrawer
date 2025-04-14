@@ -43,6 +43,8 @@ class CommandDispatcher
     search_term = message.split()[1..].join(" ").chomp
     lyric = if search_term.empty?
       @@dg.random
+    elsif (search_term.to_i > 0)
+      @@dg.sample(search_term.to_i.clamp(1..16))
     else
       @@dg.search(search_term) || "(no lyrics found)"
     end
@@ -103,6 +105,10 @@ class QuoteDatabase
       .uniq
   end
 
+  def sample(n)
+    @quotes.sample(n).join("\n")
+  end
+
   def random
     @quotes.sample(1).first
   end
@@ -127,6 +133,10 @@ Telegram::Bot::Client.run(TOKEN, logger: LOGGER) do |bot|
       "ERROR: #{ex}"
     end  
     if response
+      if response.length > 2000
+        LOGGER.warn("Truncating response to 2000 characters")
+        response = response[0..2000]
+      end
       LOGGER.info("Responding: #{response}")
       bot.api.send_message(chat_id: message.chat.id, text: response)
     end
