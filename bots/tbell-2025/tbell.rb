@@ -21,6 +21,8 @@ class CommandDispatcher
       troll()
     when '/dg'
       dg(method)
+    when '/neckbeard'
+      neckbeard()
     else
       fallback(method)
     end
@@ -31,11 +33,16 @@ class CommandDispatcher
   end
 
   def help
-    "Supported commands: /taco /troll /dg [keyword]"
+    "Supported commands: /taco /neckbeard /troll /dg [keyword]"
   end
 
   def taco
     TacoPicker.generate
+  end
+
+  def neckbeard
+    @@neckbeard ||= Neckbeard.new(CONFIG_DIRECTORY + "/neckbeard")
+    @@neckbeard.generate
   end
 
   def dg(message)
@@ -92,6 +99,39 @@ class TacoPicker
     end
 
     result.join(" ")
+  end
+end
+
+class Neckbeard
+  def initialize(config_dir)
+    @afternoon_quotes = File.open(config_dir + "/afternoon.txt").read.split("\n")
+    @evening_quotes = File.open(config_dir + "/evening.txt").read.split("\n")
+    @night_quotes = File.open(config_dir + "/night.txt").read.split("\n")
+  end
+
+  def generate
+    now = Time.new(in: "-0400")
+    day = %w(Monday Tuesday Wednesday Thursday Friday Saturday Sunday)[Time.now.wday - 1]
+    time =
+      if now.hour < 13
+        "#{now.hour}am"
+      else
+        "#{now.hour - 12}pm"
+      end
+
+    time_comment = "[#{day}, #{time}]"
+
+    quote = if now.hour < 6
+      @night_quotes.sample(1).first
+    elsif now.hour < 12
+      "still asleep, go away"
+    elsif now.hour < 18
+      @afternoon_quotes.sample(1).first
+    else
+      @evening_quotes.sample(1).first
+    end
+
+    "#{time_comment}\n#{quote}"
   end
 end
 
