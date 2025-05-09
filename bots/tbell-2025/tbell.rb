@@ -1,11 +1,14 @@
 require 'fileutils'
 require 'telegram/bot'
 require 'base64'
+require 'json'
+require 'curb'
 
 LOGGER = Logger.new($stderr)
 CONFIG_DIRECTORY = ENV['HOME'] + "/.tbellbot"
 FileUtils.mkdir_p(CONFIG_DIRECTORY)
 TOKEN = File.open(CONFIG_DIRECTORY + "/token.txt").read.chomp
+GEMINI_TOKEN = File.open(CONFIG_DIRECTORY + "/gemini.txt").read.chomp
 
 class CommandDispatcher
   def handle_message(message)
@@ -21,6 +24,8 @@ class CommandDispatcher
       troll()
     when '/dg'
       dg(method)
+    when '/genai'
+      genai(method)
     when '/neckbeard'
       neckbeard()
     else
@@ -61,6 +66,33 @@ class CommandDispatcher
   def troll
     rating = Random.rand(0..10)
     "#{rating}/10"
+  end
+
+  def genai(message)
+    suggestion = message.split()[1..].join(" ").chomp
+    prompt = <<-TEXT
+      You are a transgressive, enigmatic rapper in the style of Death Grips.
+      Your poetic style is abrasive, short bursts of dramatic and at times vulgar or violent imagery.
+      Here's an example of a poem that you wrote:
+      <example>
+      #{dg("dg 8")}
+      </example>
+      Write a 1-4 line poem in a similar style, about this topic:
+      <topic>#{suggestion}</topic>
+      TEXT
+
+    LOGGER.info("PROMPT: #{prompt}")
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=#{GEMINI_TOKEN}"
+    result = Curl.post(url, {contents: [{parts:[{text: prompt}] }] }.to_json) do |http|
+      http.headers["Content-Type"] = "application/json"
+    end
+
+    if result.status != "200"
+      LOGGER.error(result)
+      return "AI IS BROKEN, JUST LIKE YOU"
+    end
+
+    JSON.parse(result.body)["candidates"][0]["content"]["parts"][0]["text"]
   end
 end
 
