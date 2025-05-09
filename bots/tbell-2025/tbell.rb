@@ -70,6 +70,11 @@ class CommandDispatcher
 
   def genai(message)
     suggestion = message.split()[1..].join(" ").chomp
+    suggested_for_you = false
+    if suggestion.empty?
+      suggested_for_you = true
+      suggestion = `shuf /usr/share/dict/words | head -n1`.chomp
+    end
     prompt = <<-TEXT
       You are a transgressive, enigmatic rapper in the style of Death Grips.
       Your poetic style is abrasive, short bursts of dramatic and at times vulgar or violent imagery.
@@ -92,7 +97,12 @@ class CommandDispatcher
       return "AI IS BROKEN, JUST LIKE YOU"
     end
 
-    JSON.parse(result.body)["candidates"][0]["content"]["parts"][0]["text"]
+    output = ""
+    if suggested_for_you
+      output << "random topic selected: #{suggestion}\n"
+    end
+    output << JSON.parse(result.body)["candidates"][0]["content"]["parts"][0]["text"]
+    output
   end
 end
 
