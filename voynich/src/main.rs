@@ -1,20 +1,79 @@
 use log::{debug, info};
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::fmt::{Display, Formatter};
+use rand::Rng;
 
 fn main() {
     simple_logger::init_with_level(log::Level::Debug).unwrap();
     let filepath = "./data/FSG.txt";
-    let input = std::fs::read_to_string(filepath).expect("Failed to load {filepath}");
+    let input = std::fs::read_to_string(filepath).expect(&format!("Failed to load {filepath}"));
     let phase1 = remove_comment_lines(&input);
     let phase2 = fsg_resolve_naive(&phase1);
     let fsg_doc = ParsedFsg::from(&phase2).expect("failed to preprocess FSG.txt");
-    for word in fsg_doc.words {
-        // eprintln!("{word}");
+
+    let dict = Dictionary::from_file("./dict/basic_english_850.txt");
+    let translation = Translation::random_mapping(&fsg_doc.words, &dict.wordlist);
+    let translated = translation.translate_doc(&fsg_doc.document);
+    println!("{}", translated.pretty_print());
+}
+
+struct Dictionary {
+    wordlist: Vec<String>,
+}
+
+impl Dictionary {
+    fn from_file(filepath: &str) -> Self {
+        let input = std::fs::read_to_string(filepath).expect(&format!("failed to load dictionary from {filepath}"));
+        let mut words = Vec::new();
+        for line in input.lines() {
+            words.push(line.trim().to_string());
+        }
+        Dictionary { wordlist: words }
+    }
+}
+
+struct Translation {
+    table: HashMap<String, String>,
+}
+
+impl Translation {
+    fn random_mapping(from: &HashSet<String>, to: &Vec<String>) -> Self {
+        let mut table = HashMap::with_capacity(from.len());
+        let mut rng = rand::rng();
+        for from_word in from {
+            let to_word_index = rng.random_range(0..to.len());
+            let to_word = to.get(to_word_index).expect("bug: accessed out-of-range on to list");
+            table.insert(from_word.to_string(), to_word.to_string());
+        }
+        Translation { table }
     }
 
-    let p1 = fsg_doc.document.paragraphs.iter().next().unwrap();
-    eprintln!("{p1}");
+    fn translate_doc(&self, doc: &Document) -> Document {
+        let mut translated_doc = Document::new();
+        for p in &doc.paragraphs {
+            let translated_p = self.translate_paragraph(&p);
+            translated_doc.push_paragraph(translated_p);
+        }
+        translated_doc
+    }
+
+    fn translate_paragraph(&self, p: &Paragraph) -> Paragraph {
+        let mut translated_p = Paragraph::new();
+        for line in &p.lines {
+            let translated_line = self.translate_line(&line);
+            translated_p.push_line(translated_line);
+        }
+        translated_p
+    }
+
+    fn translate_line(&self, input: &Vec<String>) -> Vec<String> {
+        let mut translated = Vec::with_capacity(input.len());
+        for word in input {
+            let translated_word = self.table.get(word).expect(&format!("Bug: no translation for {word} in lookup table!"));
+            translated.push(translated_word.to_string());
+        }
+        translated
+    }
 }
 
 /// FSG.txt is a combination of several different transcriptions,
@@ -103,6 +162,21 @@ impl Document {
 
     fn push_paragraph(&mut self, p: Paragraph) {
         self.paragraphs.push(p);
+    }
+
+    fn pretty_print(&self) -> String {
+        let mut out = String::new();
+        for p in &self.paragraphs {
+            for line in &p.lines {
+                for word in line {
+                  out.push_str(&word);
+                  out.push(' ');
+                }
+                out.push('\n');
+            }
+            out.push('\n');
+        }
+        out
     }
 }
 
