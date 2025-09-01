@@ -26,25 +26,34 @@ instance_types = raw_instance_types
 
 puts "#{raw_instance_types.size} instance types found, filtered down to #{instance_types.size}"
 
-spot_prices = []
-regions.each do |region|
+threads = regions.map do |region|
   puts "fetching spot instance prices in #{region}"
-  ec2 = Aws::EC2::Client.new(profile: 'ec2-read-only', region: region)
+  Thread.new do
+    region_spot_prices = []
+    ec2 = Aws::EC2::Client.new(profile: 'ec2-read-only', region: region)
 
-  end_time = Time.now
-  start_time = end_time
-  spot_price_history_req = {
-    start_time: start_time,
-    end_time: end_time,
-    instance_types: instance_types.map { |it| it.instance_type },
-    product_descriptions: ["Linux/UNIX"]
-  }
-  ec2.describe_spot_price_history(spot_price_history_req).each do |response|
-    spot_prices << response.spot_price_history
+    end_time = Time.now
+    start_time = end_time
+    spot_price_history_req = {
+      start_time: start_time,
+      end_time: end_time,
+      instance_types: instance_types.map { |it| it.instance_type },
+      product_descriptions: ["Linux/UNIX"]
+    }
+    ec2.describe_spot_price_history(spot_price_history_req).each do |response|
+      region_spot_prices << response.spot_price_history
+    end
+    region_spot_prices.flatten
   end
 end
+
+spot_prices = []
+threads.each do |t|
+  spot_prices << t.value
+end
+
 spot_prices.flatten!
-puts "For #{instance_types.size} found #{spot_prices.size} spot prices across #{regions.size} regions"
+puts "For #{instance_types.size} instance types, found #{spot_prices.size} spot prices across #{regions.size} regions"
 
 header = ["$/vCPU/hr", "$/hr", "instance-type", "az", "n vCPUs", "mem (G)"]
 data = []
