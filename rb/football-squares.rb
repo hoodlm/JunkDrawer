@@ -1,3 +1,4 @@
+# bengals 2024 scores. these are cumulative scores, NOT box scores.
 SCORES = [
   [[0, 0], [0, 10], [7, 13], [10, 16]],
   [[3, 3], [16, 10], [22, 17], [25, 26]],
