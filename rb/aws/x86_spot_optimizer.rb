@@ -11,7 +11,8 @@ puts "Fetching instance types..."
 raw_instance_types = []
 ec2.describe_instance_types({
   filters: [
-    { name: "current-generation", values: ["true"] }
+    { name: "current-generation", values: ["true"] },
+    { name: "burstable-performance-supported", values: ["false"] },
   ]
 }).each do |response|
   raw_instance_types << response.instance_types
@@ -23,6 +24,12 @@ instance_types = raw_instance_types
   .filter { |it| it.supported_usage_classes.include? "spot" }
   .filter { |it| it.processor_info.supported_architectures.include? "x86_64" }
   .reject { |it| it.instance_type.include? "flex" }
+  .reject { |it| it.instance_type.include? "c5" }
+  .reject { |it| it.instance_type.include? "r5" }
+  .reject { |it| it.instance_type.include? "m5" }
+  .reject { |it| it.instance_type.include? "c6" }
+  .reject { |it| it.instance_type.include? "r6" }
+  .reject { |it| it.instance_type.include? "m6" }
 
 puts "#{raw_instance_types.size} instance types found, filtered down to #{instance_types.size}"
 
