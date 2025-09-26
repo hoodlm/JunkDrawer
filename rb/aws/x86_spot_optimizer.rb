@@ -7,7 +7,7 @@ require 'terminal-table'
 ec2 = Aws::EC2::Client.new(profile: 'ec2-read-only', region: 'us-east-1')
 puts "Fetching regions..."
 regions = ec2.describe_regions.regions.map { |it| it.region_name }
-# regions = ["ap-southeast-3"]
+# regions = ["us-east-2"]
 puts "Fetching instance types..."
 raw_instance_types = []
 ec2.describe_instance_types({
@@ -21,18 +21,19 @@ end
 raw_instance_types.flatten!
 
 instance_types = raw_instance_types
-  .filter { |it| it.v_cpu_info.default_v_cpus >= 8 }
+#  .filter { |it| it.v_cpu_info.default_v_cpus <= 64 }
   .filter { |it| it.supported_usage_classes.include? "spot" }
   .filter { |it| it.processor_info.supported_architectures.include? "x86_64" }
   .reject { |it| it.instance_type.include? "flex" }
 #  .filter { |it| it.instance_type.include? "m8i" }
+  .reject { |it| it.instance_type.include? "inf1" }
   .reject { |it| it.instance_type.include? "c5" }
   .reject { |it| it.instance_type.include? "r5" }
   .reject { |it| it.instance_type.include? "m5" }
+=begin
   .reject { |it| it.instance_type.include? "c6" }
   .reject { |it| it.instance_type.include? "r6" }
   .reject { |it| it.instance_type.include? "m6" }
-=begin
   .filter { |it| it.gpu_info }
   .filter { |it| it.gpu_info.gpus.sum { |gpu| gpu.count } > 0 }
 =end
@@ -89,11 +90,18 @@ spot_prices.flatten.each do |spot_price|
 end
 
 sorted = data.sort_by { |it| it.first }
+=begin
 table = Terminal::Table.new do |t|
   t << header
   t.add_separator
-  sorted[1..100].each do |data|
+  sorted[1..300].each do |data|
     t.add_row(data)
   end
 end
-puts table
+puts Table
+=end
+
+puts(header.join(","))
+sorted[1..400].each do |data|
+  puts(data.join(","))
+end
